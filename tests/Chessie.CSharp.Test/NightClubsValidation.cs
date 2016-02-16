@@ -30,35 +30,35 @@ namespace Chessie.CSharp.Test
 
     class Club
     {
-        public static Result<Person, string> CheckAge(Person p)
+        public static RopResult<Person, string> CheckAge(Person p)
         {
             if (p.Age < 18)
-                return Result<Person, string>.FailWith("Too young!");
+                return RopResult<Person, string>.FailWith("Too young!");
             if (p.Age > 40)
-                return Result<Person, string>.FailWith("Too old!");
-            return Result<Person, string>.Succeed(p);
+                return RopResult<Person, string>.FailWith("Too old!");
+            return RopResult<Person, string>.Succeed(p);
         }
 
-        public static Result<Person, string> CheckClothes(Person p)
+        public static RopResult<Person, string> CheckClothes(Person p)
         {
             if (p.Gender == Gender.Male && !p.Clothes.Contains("Tie"))
-                return Result<Person, string>.FailWith("Smarten up!");
+                return RopResult<Person, string>.FailWith("Smarten up!");
             if (p.Gender == Gender.Female && p.Clothes.Contains("Trainers"))
-                return Result<Person, string>.FailWith("Wear high heels!");
-            return Result<Person, string>.Succeed(p);
+                return RopResult<Person, string>.FailWith("Wear high heels!");
+            return RopResult<Person, string>.Succeed(p);
         }
 
-        public static Result<Person, string> CheckSobriety(Person p)
+        public static RopResult<Person, string> CheckSobriety(Person p)
         {
             if (new[] { Sobriety.Drunk, Sobriety.Paralytic, Sobriety.Unconscious }.Contains(p.Sobriety))
-                return Result<Person, string>.FailWith("Sober up!");
-            return Result<Person, string>.Succeed(p);
+                return RopResult<Person, string>.FailWith("Sober up!");
+            return RopResult<Person, string>.Succeed(p);
         }
     }
 
     class ClubbedToDeath
     {
-        public static Result<decimal, string> CostToEnter(Person p)
+        public static RopResult<decimal, string> CostToEnter(Person p)
         {
             return from a in Club.CheckAge(p)
                    from b in Club.CheckClothes(a)
@@ -114,7 +114,7 @@ namespace Chessie.CSharp.Test
 
     class ClubTropicana
     {
-        public static Result<decimal, string> CostToEnter(Person p)
+        public static RopResult<decimal, string> CostToEnter(Person p)
         {
             return from c in Club.CheckAge(p)
                    join x in Club.CheckClothes(p) on 1 equals 1
@@ -150,16 +150,16 @@ namespace Chessie.CSharp.Test
 
     class GayBar
     {
-        public static Result<Person, string> CheckGender (Person p)
+        public static RopResult<Person, string> CheckGender (Person p)
         {
             if (p.Gender == Gender.Male)
-                return Result<Person, string>.Succeed(p);
-            return Result<Person, string>.FailWith("Men only");
+                return RopResult<Person, string>.Succeed(p);
+            return RopResult<Person, string>.FailWith("Men only");
         }
 
-        public static Result<decimal, string> CostToEnter(Person p)
+        public static RopResult<decimal, string> CostToEnter(Person p)
         {
-            return new List<Func<Person, Result<Person, string>>> { CheckGender, Club.CheckAge, Club.CheckClothes, Club.CheckSobriety }
+            return new List<Func<Person, RopResult<Person, string>>> { CheckGender, Club.CheckAge, Club.CheckClothes, Club.CheckSobriety }
                 .Select(check => check(p))
                 .Collect()
                 .Select(x => x[0].Age + 1.5m);

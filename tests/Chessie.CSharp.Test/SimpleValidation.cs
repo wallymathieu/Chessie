@@ -17,13 +17,13 @@ namespace Chessie.CSharp.Test
 
     public class Validation
     {
-        public static Result<Request, string> ValidateInput(Request input)
+        public static RopResult<Request, string> ValidateInput(Request input)
         {
             if (input.Name == "")
-                return Result<Request, string>.FailWith("Name must not be blank");
+                return RopResult<Request, string>.FailWith("Name must not be blank");
             if (input.EMail == "")
-                return Result<Request, string>.FailWith("Email must not be blank");
-            return Result<Request, string>.Succeed(input);
+                return RopResult<Request, string>.FailWith("Email must not be blank");
+            return RopResult<Request, string>.Succeed(input);
 
         }
     }
@@ -35,14 +35,14 @@ namespace Chessie.CSharp.Test
         public void TryWillCatch()
         {
             var exn = new Exception("Hello World");
-            var result = Result<string, Exception>.Try(() => { throw exn; });
+            var result = RopResult<string, Exception>.Try(() => { throw exn; });
             Assert.AreEqual(exn, result.FailedWith().First());
         }
 
         [Test]
         public void TryWillReturnValue()
         {
-            var result = Result<string, Exception>.Try(() => { return "hello world"; });
+            var result = RopResult<string, Exception>.Try(() => { return "hello world"; });
             Assert.AreEqual("hello world", result.SucceededWith());
         }
     }

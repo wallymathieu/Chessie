@@ -2,68 +2,77 @@
 namespace Chessie.ErrorHandling
 
 open System
+type Result<'TSuccess, 'TError> = 
+    /// Represents the result of a successful computation.
+    | Success of 'TSuccess
+    /// Represents the result of a failed computation.
+    | Failure of 'TError 
 
 /// Represents the result of a computation.
-type Result<'TSuccess, 'TMessage> = 
-    /// Represents the result of a successful computation.
-    | Ok of 'TSuccess * 'TMessage list
-    /// Represents the result of a failed computation.
-    | Bad of 'TMessage list
+type RopResult<'TSuccess, 'TMessage> = {
+    Result:Result<'TSuccess, unit>
+    Log:'TMessage list
+    }with
+    
+    static member Bad(messages)={Result=Failure(); Log=messages}
+    static member Ok(value,messages)={Result=Success(value); Log=messages}
 
     /// Creates a Failure result with the given messages.
-    static member FailWith(messages:'TMessage seq) : Result<'TSuccess, 'TMessage> = Result<'TSuccess, 'TMessage>.Bad(messages |> Seq.toList)
+    static member FailWith(messages:'TMessage seq) : RopResult<'TSuccess, 'TMessage> = RopResult<'TSuccess, 'TMessage>.Bad(messages |> Seq.toList)
 
     /// Creates a Failure result with the given message.
-    static member FailWith(message:'TMessage) : Result<'TSuccess, 'TMessage> = Result<'TSuccess, 'TMessage>.Bad([message])
+    static member FailWith(message:'TMessage) : RopResult<'TSuccess, 'TMessage> = RopResult<'TSuccess, 'TMessage>.Bad([message])
     
     /// Creates a Success result with the given value.
-    static member Succeed(value:'TSuccess) : Result<'TSuccess, 'TMessage> = Result<'TSuccess, 'TMessage>.Ok(value,[])
+    static member Succeed(value:'TSuccess) : RopResult<'TSuccess, 'TMessage> = RopResult<'TSuccess, 'TMessage>.Ok(value,[])
 
     /// Creates a Success result with the given value and the given message.
-    static member Succeed(value:'TSuccess,message:'TMessage) : Result<'TSuccess, 'TMessage> = Result<'TSuccess, 'TMessage>.Ok(value,[message])
+    static member Succeed(value:'TSuccess,message:'TMessage) : RopResult<'TSuccess, 'TMessage> = RopResult<'TSuccess, 'TMessage>.Ok(value,[message])
 
     /// Creates a Success result with the given value and the given message.
-    static member Succeed(value:'TSuccess,messages:'TMessage seq) : Result<'TSuccess, 'TMessage> = Result<'TSuccess, 'TMessage>.Ok(value,messages |> Seq.toList)
+    static member Succeed(value:'TSuccess,messages:'TMessage seq) : RopResult<'TSuccess, 'TMessage> = RopResult<'TSuccess, 'TMessage>.Ok(value,messages |> Seq.toList)
 
     /// Executes the given function on a given success or captures the failure
-    static member Try(func: Func<_>) : Result<'TSuccess,exn> =        
+    static member Try(func: Func<_>) : RopResult<'TSuccess,exn> =        
         try
-            Ok(func.Invoke(),[])
+            RopResult<'TSuccess,exn>.Ok(func.Invoke(),[])
         with
-        | exn -> Bad[exn]
+        | exn -> RopResult<'TSuccess,exn>.Bad[exn]
 
     /// Converts the result into a string.
     override this.ToString() =
-        match this with
-        | Ok(v,msgs) -> sprintf "OK: %A - %s" v (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))
-        | Bad(msgs) -> sprintf "Error: %s" (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))    
+        let msgs = this.Log
+        match this.Result with
+        | Success(v) -> sprintf "OK: %A - %s" v (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))
+        | Failure() -> sprintf "Error: %s" (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))    
 
 /// Basic combinators and operators for error handling.
 [<AutoOpen>]
 module Trial =  
     /// Wraps a value in a Success
-    let inline ok<'TSuccess,'TMessage> (x:'TSuccess) : Result<'TSuccess,'TMessage> = Ok(x, [])
+    let inline ok<'TSuccess,'TMessage> (x:'TSuccess) :RopResult<'TSuccess,'TMessage> = RopResult<'TSuccess,'TMessage>.Ok(x, [])
 
     /// Wraps a value in a Success
-    let inline pass<'TSuccess,'TMessage> (x:'TSuccess) : Result<'TSuccess,'TMessage> = Ok(x, [])
+    let inline pass<'TSuccess,'TMessage> (x:'TSuccess) :RopResult<'TSuccess,'TMessage> = RopResult<'TSuccess,'TMessage>.Ok(x, [])
 
     /// Wraps a value in a Success and adds a message
-    let inline warn<'TSuccess,'TMessage> (msg:'TMessage) (x:'TSuccess) : Result<'TSuccess,'TMessage> = Ok(x,[msg])
+    let inline warn<'TSuccess,'TMessage> (msg:'TMessage) (x:'TSuccess) :RopResult<'TSuccess,'TMessage>= RopResult<'TSuccess,'TMessage>.Ok(x,[msg])
 
     /// Wraps a message in a Failure
-    let inline fail<'TSuccess,'Message> (msg:'Message) : Result<'TSuccess,'Message> = Bad([ msg ])
+    let inline fail<'TSuccess,'Message> (msg:'Message) :RopResult<'TSuccess,'TMessage> = RopResult<'TSuccess,'Message>.Bad([ msg ])
 
     /// Returns true if the result was not successful.
-    let inline failed result = 
-        match result with
-        | Bad _ -> true
+    let inline failed (result:RopResult<_,_>) = 
+        match result.Result with
+        | Failure _ -> true
         | _ -> false
 
     /// Takes a Result and maps it with fSuccess if it is a Success otherwise it maps it with fFailure.
-    let inline either fSuccess fFailure trialResult = 
-        match trialResult with
-        | Ok(x, msgs) -> fSuccess (x, msgs)
-        | Bad(msgs) -> fFailure (msgs)
+    let inline either fSuccess fFailure (trialResult :RopResult<_,_>) = 
+        let msgs = trialResult.Log
+        match trialResult.Result with
+        | Success(x) -> fSuccess (x, msgs)
+        | Failure() -> fFailure (msgs)
 
     /// If the given result is a Success the wrapped value will be returned. 
     ///Otherwise the function throws an exception with Failure message of the result.
@@ -77,19 +86,19 @@ module Trial =
 
     /// Appends the given messages with the messages in the given result.
     let inline mergeMessages msgs result = 
-        let inline fSuccess (x, msgs2) = Ok(x, msgs @ msgs2)
-        let inline fFailure errs = Bad(errs @ msgs)
+        let inline fSuccess (x, msgs2) = RopResult<_,_>.Ok(x, msgs @ msgs2)
+        let inline fFailure errs = RopResult<_,_>.Bad(errs @ msgs)
         either fSuccess fFailure result
 
     /// If the result is a Success it executes the given function on the value.
     /// Otherwise the exisiting failure is propagated.
     let inline bind f result = 
         let inline fSuccess (x, msgs) = f x |> mergeMessages msgs
-        let inline fFailure (msgs) = Bad msgs
+        let inline fFailure (msgs) = RopResult<_,_>.Bad msgs
         either fSuccess fFailure result
 
    /// Flattens a nested result given the Failure types are equal
-    let inline flatten (result : Result<Result<_,_>,_>) =
+    let inline flatten (result : RopResult<RopResult<_,_>,_>) =
         result |> bind (fun x -> x)
 
     /// If the result is a Success it executes the given function on the value. 
@@ -99,12 +108,14 @@ module Trial =
 
     /// If the wrapped function is a success and the given result is a success the function is applied on the value. 
     /// Otherwise the exisiting error messages are propagated.
-    let inline apply wrappedFunction result = 
-        match wrappedFunction, result with
-        | Ok(f, msgs1), Ok(x, msgs2) -> Ok(f x, msgs1 @ msgs2)
-        | Bad errs, Ok(_, _msgs) -> Bad(errs)
-        | Ok(_, _msgs), Bad errs -> Bad(errs)
-        | Bad errs1, Bad errs2 -> Bad(errs1 @ errs2)
+    let inline apply (wrappedFunction:RopResult<_,_>) (result:RopResult<_,_>) = 
+        let msgs1 = wrappedFunction.Log
+        let msgs2 = result.Log
+        match wrappedFunction.Result, result.Result with
+        | Success(f), Success(x) -> RopResult<_,_>.Ok(f x, msgs1 @ msgs2)
+        | Failure (), Success(_) -> RopResult<_,_>.Bad(msgs1 @ msgs2)
+        | Success(_), Failure () -> RopResult<_,_>.Bad(msgs1 @ msgs2)
+        | Failure (), Failure () -> RopResult<_,_>.Bad(msgs1 @ msgs2)
 
     /// If the wrapped function is a success and the given result is a success the function is applied on the value. 
     /// Otherwise the exisiting error messages are propagated.
@@ -112,13 +123,14 @@ module Trial =
     let inline (<*>) wrappedFunction result = apply wrappedFunction result
 
     /// Lifts a function into a Result container and applies it on the given result.
-    let inline lift f result = apply (ok f) result
+    let inline lift (f:'a->'b) (result:RopResult<'a,_>) = apply (ok f) result
 
     /// Maps a function over the existing error messages in case of failure. In case of success, the message type will be changed and warnings will be discarded.
-    let inline mapFailure f result =
-        match result with
-        | Ok (v,_) -> ok v
-        | Bad errs -> Bad (f errs)
+    let inline mapFailure f (result:RopResult<_,_>) =
+        let msgs = result.Log
+        match result.Result with
+        | Success (v) -> ok v
+        | Failure() -> RopResult<_,_>.Bad (f msgs)
 
     /// Lifts a function into a Result and applies it on the given result.
     /// This is the infix operator version of ErrorHandling.lift
@@ -148,10 +160,12 @@ module Trial =
     /// If the sequence contains an error the error will be propagated.
     let inline collect xs = 
         Seq.fold (fun result next -> 
-            match result, next with
-            | Ok(rs, m1), Ok(r, m2) -> Ok(r :: rs, m1 @ m2)
-            | Ok(_, m1), Bad(m2) | Bad(m1), Ok(_, m2) -> Bad(m1 @ m2)
-            | Bad(m1), Bad(m2) -> Bad(m1 @ m2)) (ok []) xs
+            let m1 = result.Log
+            let m2 = next.Log
+            match result.Result, next.Result with
+            | Success(rs), Success(r) -> RopResult<_,_>.Ok(r :: rs, m1 @ m2)
+            | Success(_), Failure() | Failure(), Success(_) -> RopResult<_,_>.Bad(m1 @ m2)
+            | Failure(), Failure() -> RopResult<_,_>.Bad(m1 @ m2)) (ok []) xs
         |> lift List.rev
 
     /// Converts an option into a Result.
@@ -168,14 +182,14 @@ module Trial =
 
     /// Categorizes a result based on its state and the presence of extra messages
     let inline (|Pass|Warn|Fail|) result =
-      match result with
-      | Ok  (value, []  ) -> Pass  value
-      | Ok  (value, msgs) -> Warn (value,msgs)
-      | Bad        msgs  -> Fail        msgs
+      match result.Result, result.Log with
+      | Success (value), []  -> Pass  value
+      | Success (value), msgs -> Warn (value,msgs)
+      | Failure ()     , msgs  -> Fail        msgs
 
     let inline failOnWarnings result =
       match result with
-      | Warn (_,msgs) -> Bad msgs
+      | Warn (_,msgs) -> RopResult<_,_>.Bad msgs
       | _             -> result 
 
     /// Builder type for error handling computation expressions.
@@ -219,7 +233,7 @@ module Trial =
 /// Represents the result of an async computation
 [<NoComparison;NoEquality>]
 type AsyncResult<'a, 'b> = 
-    | AR of Async<Result<'a, 'b>>
+    | AR of Async<RopResult<'a, 'b>>
 
 /// Useful functions for combining error handling computations with async computations.
 [<AutoOpen>]
@@ -264,7 +278,7 @@ module AsyncTrial =
             
             let fFailure errs = 
                 errs
-                |> Bad
+                |> RopResult<_,_>.Bad
                 |> Async.singleton
             
             asyncResult
@@ -272,7 +286,7 @@ module AsyncTrial =
             |> Async.bind (either fSuccess fFailure)
             |> AR
         
-        member this.Bind(result : Result<'a, 'c>, binder : 'a -> AsyncResult<'b, 'c>) : AsyncResult<'b, 'c> = 
+        member this.Bind(result : RopResult<'a, 'c>, binder : 'a -> AsyncResult<'b, 'c>) : AsyncResult<'b, 'c> = 
             this.Bind(result
                       |> Async.singleton
                       |> AR, binder)
@@ -303,76 +317,80 @@ open Chessie.ErrorHandling
 type ResultExtensions () =
     /// Allows pattern matching on Results from C#.
     [<Extension>]
-    static member inline Match(this, ifSuccess:Action<'TSuccess , ('TMessage list)>, ifFailure:Action<'TMessage list>) =
-        match this with
-        | Result.Ok(x, msgs) -> ifSuccess.Invoke(x,msgs)
-        | Result.Bad(msgs) -> ifFailure.Invoke(msgs)
+    static member inline Match((this:RopResult<_,_>), ifSuccess:Action<'TSuccess , ('TMessage list)>, ifFailure:Action<'TMessage list>) =
+        let msgs = this.Log
+        match this.Result with
+        | Success(x) -> ifSuccess.Invoke(x,msgs)
+        | Failure() -> ifFailure.Invoke(msgs)
     
     /// Allows pattern matching on Results from C#.
     [<Extension>]
-    static member inline Either(this, ifSuccess:Func<'TSuccess , ('TMessage list),'TResult>, ifFailure:Func<'TMessage list,'TResult>) =
-        match this with
-        | Result.Ok(x, msgs) -> ifSuccess.Invoke(x,msgs)
-        | Result.Bad(msgs) -> ifFailure.Invoke(msgs)
+    static member inline Either((this:RopResult<_,_>), ifSuccess:Func<'TSuccess , ('TMessage list),'TResult>, ifFailure:Func<'TMessage list,'TResult>) =
+        let msgs = this.Log
+        match this.Result with
+        | Success(x) -> ifSuccess.Invoke(x,msgs)
+        | Failure() -> ifFailure.Invoke(msgs)
 
     /// Lifts a Func into a Result and applies it on the given result.
     [<Extension>]
-    static member inline Map(this:Result<'TSuccess, 'TMessage>,func:Func<_,_>) =
+    static member inline Map(this:RopResult<'TSuccess, 'TMessage>,func:Func<_,_>) =
         lift func.Invoke this
 
     /// Collects a sequence of Results and accumulates their values.
     /// If the sequence contains an error the error will be propagated.
     [<Extension>]
-    static member inline Collect(values:seq<Result<'TSuccess, 'TMessage>>) =
+    static member inline Collect(values:seq<RopResult<'TSuccess, 'TMessage>>) =
         collect values
 
     /// Collects a sequence of Results and accumulates their values.
     /// If the sequence contains an error the error will be propagated.
     [<Extension>]
-    static member inline Flatten(this) : Result<seq<'TSuccess>,'TMessage>=
-        match this with
-        | Result.Ok(values:Result<'TSuccess,'TMessage> seq, _msgs:'TMessage list) -> 
+    static member inline Flatten( ( this:RopResult<_,_>)) : RopResult<seq<'TSuccess>,'TMessage>=
+        match this.Result with
+        | Success(values:RopResult<'TSuccess,'TMessage> seq, _msgs:'TMessage list) -> 
             match collect values with
-            | Result.Ok(values,msgs) -> Ok(values |> List.toSeq,msgs)
-            | Result.Bad(msgs:'TMessage list) -> Bad msgs
-        | Result.Bad(msgs:'TMessage list) -> Bad msgs
+            | { Result= Success(values); Log=msgs} -> RopResult<_,_>.Ok(values |> List.toSeq,msgs)
+            | { Result= Failure(); Log=msgs:'TMessage list} -> RopResult<_,_>.Bad msgs
+        | Failure() -> RopResult<_,_>.Bad this.Log
 
     /// If the result is a Success it executes the given Func on the value.
     /// Otherwise the exisiting failure is propagated.
     [<Extension>]
-    static member inline SelectMany (this:Result<'TSuccess, 'TMessage>, func: Func<_,_>) =
+    static member inline SelectMany (this:RopResult<'TSuccess, 'TMessage>, func: Func<_,_>) =
         bind func.Invoke this
 
     /// If the result is a Success it executes the given Func on the value.
     /// If the result of the Func is a Success it maps it using the given Func.
     /// Otherwise the exisiting failure is propagated.
     [<Extension>]
-    static member inline SelectMany (this:Result<'TSuccess, 'TMessage>, func: Func<_,_>, mapper: Func<_,_,_>) =
+    static member inline SelectMany (this:RopResult<'TSuccess, 'TMessage>, func: Func<_,_>, mapper: Func<_,_,_>) =
         bind (fun s -> s |> func.Invoke |> lift (fun v -> mapper.Invoke(s,v))) this
 
     /// Lifts a Func into a Result and applies it on the given result.
     [<Extension>]
-    static member inline Select (this:Result<'TSuccess, 'TMessage>, func: Func<_,_>) = lift func.Invoke this
+    static member inline Select (this:RopResult<'TSuccess, 'TMessage>, func: Func<_,_>) = lift func.Invoke this
 
     /// Returns the error messages or fails if the result was a success.
     [<Extension>]
-    static member inline FailedWith(this:Result<'TSuccess, 'TMessage>) = 
-        match this with
-        | Result.Ok(v,msgs) -> failwithf "Result was a success: %A - %s" v (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))
-        | Result.Bad(msgs) -> msgs
+    static member inline FailedWith(this:RopResult<'TSuccess, 'TMessage>) = 
+        let msgs = this.Log
+        match this.Result with
+        | Success(v) -> failwithf "Result was a success: %A - %s" v (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))
+        | Failure() -> msgs
 
     /// Returns the result or fails if the result was an error.
     [<Extension>]
-    static member inline SucceededWith(this:Result<'TSuccess, 'TMessage>) : 'TSuccess = 
-        match this with
-        | Result.Ok(v,_msgs) -> v
-        | Result.Bad(msgs) -> failwithf "Result was an error: %s" (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))
+    static member inline SucceededWith(this:RopResult<'TSuccess, 'TMessage>) : 'TSuccess = 
+        let msgs = this.Log
+        match this.Result with
+        | Success(v) -> v
+        | Failure() -> failwithf "Result was an error: %s" (String.Join(Environment.NewLine, msgs |> Seq.map (fun x -> x.ToString())))
 
     /// Joins two results. 
     /// If both are a success the resultSelector Func is applied to the values and the existing success messages are propagated.
     /// Otherwise the exisiting error messages are propagated.
     [<Extension>]
-    static member inline Join (this: Result<'TOuter, 'TMessage>, inner: Result<'TInner, 'TMessage>, _outerKeySelector: Func<'TOuter,'TKey>, _innerKeySelector: Func<'TInner, 'TKey>, resultSelector: Func<'TOuter, 'TInner, 'TResult>) =
+    static member inline Join (this: RopResult<'TOuter, 'TMessage>, inner: RopResult<'TInner, 'TMessage>, _outerKeySelector: Func<'TOuter,'TKey>, _innerKeySelector: Func<'TInner, 'TKey>, resultSelector: Func<'TOuter, 'TInner, 'TResult>) =
         let curry func = fun a b -> func (a, b)
         curry resultSelector.Invoke
         <!> this 
@@ -385,5 +403,5 @@ type ResultExtensions () =
 
     /// Maps a function over the existing error messages in case of failure. In case of success, the message type will be changed and warnings will be discarded.
     [<Extension>]
-    static member inline MapFailure (this: Result<'TSuccess, 'TMessage>, f: Func<'TMessage list, 'TMessage2 seq>) =
+    static member inline MapFailure (this: RopResult<'TSuccess, 'TMessage>, f: Func<'TMessage list, 'TMessage2 seq>) =
         this |> Trial.mapFailure (f.Invoke >> Seq.toList)

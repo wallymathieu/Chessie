@@ -24,30 +24,30 @@ let ``ofChoice if Choice2Of2 of list it should fail`` () =
 
 [<Test>]
 let ``mapFailure if success should discard warning`` () =
-    Ok (42,[1;2;3])
+    RopResult<_,_>.Ok (42,[1;2;3])
     |> Trial.mapFailure (fun _ -> ["err1"])
-    |> shouldEqual (Ok (42,[]))
+    |> shouldEqual (RopResult<_,_>.Ok (42,[]))
 
 [<Test>]
 let ``mapFailure if failure should map over error`` () =
     fail "error"
     |> Trial.mapFailure (fun _ -> [42])
-    |> shouldEqual (Bad [42])
+    |> shouldEqual (RopResult<_,_>.Bad [42])
 
 [<Test>]
 let ``mapFailure if failure should map over list of errors`` () =
-    Bad ["err1"; "err2"]
+    RopResult<_,_>.Bad ["err1"; "err2"]
     |> Trial.mapFailure (fun errs -> errs |> List.map (function "err1" -> 42 | "err2" -> 43 | _ -> 0))
-    |> shouldEqual (Bad [42; 43])
+    |> shouldEqual (RopResult<_,_>.Bad [42; 43])
 
 [<Test>]
 let ``mapFailure if failure should replace errors with singleton list`` () =
-    Bad ["err1", "err2"]
+    RopResult<_,_>.Bad ["err1", "err2"]
     |> Trial.mapFailure (fun _ -> [42])
-    |> shouldEqual (Bad [42])
+    |> shouldEqual (RopResult<_,_>.Bad [42])
 
 [<Test>]
 let ``mapFailure if failure should map over empty list of errors`` () =
-    Bad []
+    RopResult<_,_>.Bad []
     |> Trial.mapFailure (fun errs -> errs |> List.map (function "err1" -> 42 | "err2" -> 43 | _ -> 0))
-    |> shouldEqual (Bad [])
+    |> shouldEqual (RopResult<_,_>.Bad [])

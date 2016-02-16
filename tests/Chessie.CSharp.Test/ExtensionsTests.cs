@@ -14,8 +14,8 @@ namespace Chessie.CSharp.Test
         [Test]
         public void JoinToResultsOfSuccessWorks()
         {
-            var result1 = Result<int, string>.Succeed(1, "added one");
-            var result2 = Result<int, string>.Succeed(2, "added two");
+            var result1 = RopResult<int, string>.Succeed(1, "added one");
+            var result2 = RopResult<int, string>.Succeed(2, "added two");
 
             var result3 = result1.Join(result2, _ => 0, _ => -0, (i1, i2) => i1 + i2);
 
@@ -31,17 +31,17 @@ namespace Chessie.CSharp.Test
         [Test]
         public void Test()
         {
-            Func<Result<string, string>, Result<string, string>, Result<string, string>, Result<string, string>> f = (r1, r2, r3) =>
+            Func<RopResult<string, string>, RopResult<string, string>, RopResult<string, string>, RopResult<string, string>> f = (r1, r2, r3) =>
                 from a in r1
                 from b in r2
                 from c in r3
                 select a + b + c;
 
-            f(Result<string, string>.Succeed("1"), Result<string, string>.Succeed("2"), Result<string, string>.Succeed("3")).Match(
+            f(RopResult<string, string>.Succeed("1"), RopResult<string, string>.Succeed("2"), RopResult<string, string>.Succeed("3")).Match(
                 ifSuccess: (s, _) => Assert.That(s, Is.EqualTo("123")),
                 ifFailure: _ => Assert.Fail("should not fail"));
 
-            f(Result<string, string>.Succeed("1", "msg1"), Result<string, string>.Succeed("2", "msg2"), Result<string, string>.Succeed("3", "msg3")).Match(
+            f(RopResult<string, string>.Succeed("1", "msg1"), RopResult<string, string>.Succeed("2", "msg2"), RopResult<string, string>.Succeed("3", "msg3")).Match(
                 ifSuccess: (s, list) =>
                 {
                     Assert.That(s, Is.EqualTo("123"));
@@ -49,15 +49,15 @@ namespace Chessie.CSharp.Test
                 },
                 ifFailure: list => Assert.Fail("should not fail"));
 
-            f(Result<string, string>.FailWith("fail"), Result<string, string>.Succeed("2"), Result<string, string>.Succeed("3")).Match(
+            f(RopResult<string, string>.FailWith("fail"), RopResult<string, string>.Succeed("2"), RopResult<string, string>.Succeed("3")).Match(
                 ifSuccess: (s, _) => Assert.Fail("should fail"),
                 ifFailure: list => Assert.That(list, Is.EquivalentTo(new[] { "fail" })));
 
-            f(Result<string, string>.Succeed("1"), Result<string, string>.FailWith("fail"), Result<string, string>.Succeed("3")).Match(
+            f(RopResult<string, string>.Succeed("1"), RopResult<string, string>.FailWith("fail"), RopResult<string, string>.Succeed("3")).Match(
                 ifSuccess: (s, _) => Assert.Fail("should fail"),
                 ifFailure: list => Assert.That(list, Is.EquivalentTo(new[] { "fail" })));
 
-            f(Result<string, string>.Succeed("1"), Result<string, string>.FailWith("fail1"), Result<string, string>.FailWith("fail2")).Match(
+            f(RopResult<string, string>.Succeed("1"), RopResult<string, string>.FailWith("fail1"), RopResult<string, string>.FailWith("fail2")).Match(
                 ifSuccess: (s, _) => Assert.Fail("should fail"),
                 ifFailure: list => Assert.That(list, Is.EquivalentTo(new[] { "fail1" })));
         }
@@ -89,7 +89,7 @@ namespace Chessie.CSharp.Test
         [Test]
         public void MapFailureOnSuccessShouldReturnSuccess()
         {
-            Result<int, string>.Succeed(42, "warn1")
+            RopResult<int, string>.Succeed(42, "warn1")
                 .MapFailure(list => new[] { 42 })
                 .Match(
                     ifSuccess: (v, msgs) =>
@@ -103,7 +103,7 @@ namespace Chessie.CSharp.Test
         [Test]
         public void MapFailureOnFailureShouldMapOverError()
         {
-            Result<int, string>.FailWith(new[] { "err1", "err2" })
+            RopResult<int, string>.FailWith(new[] { "err1", "err2" })
                 .MapFailure(_ => new[] { 42 })
                 .Match(
                     ifSuccess: (v, msgs) => Assert.Fail(),
@@ -113,7 +113,7 @@ namespace Chessie.CSharp.Test
         [Test]
         public void MapFailureOnFailureShouldMapOverListOfErrors()
         {
-            Result<int, string>.FailWith(new[] { "err1", "err2" })
+            RopResult<int, string>.FailWith(new[] { "err1", "err2" })
                 .MapFailure(errs => errs.Select(err =>
                 {
                     switch (err)
