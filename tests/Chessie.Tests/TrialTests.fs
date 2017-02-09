@@ -32,32 +32,32 @@ let ``mapFailure if success should discard warning`` () =
 let ``mapFailure if failure should map over error`` () =
     fail "error"
     |> Trial.mapFailure (fun _ -> [42])
-    |> shouldEqual (Bad [42])
+    |> shouldEqual (Error [42])
 
 [<Test>]
 let ``mapFailure if failure should map over list of errors`` () =
-    Bad ["err1"; "err2"]
+    Error ["err1"; "err2"]
     |> Trial.mapFailure (fun errs -> errs |> List.map (function "err1" -> 42 | "err2" -> 43 | _ -> 0))
-    |> shouldEqual (Bad [42; 43])
+    |> shouldEqual (Error [42; 43])
 
 [<Test>]
 let ``mapFailure if failure should replace errors with singleton list`` () =
-    Bad ["err1", "err2"]
+    Error ["err1", "err2"]
     |> Trial.mapFailure (fun _ -> [42])
-    |> shouldEqual (Bad [42])
+    |> shouldEqual (Error [42])
 
 [<Test>]
 let ``mapFailure if failure should map over empty list of errors`` () =
-    Bad []
+    Error []
     |> Trial.mapFailure (fun errs -> errs |> List.map (function "err1" -> 42 | "err2" -> 43 | _ -> 0))
-    |> shouldEqual (Bad [])
+    |> shouldEqual (Error [])
 
 [<Test>]
 let ``tryCatch if failure should return exception`` () = 
     let ex = exn "error" 
     1 
     |> Trial.Catch (fun x -> raise ex) 
-    |> shouldEqual (Bad[ex])
+    |> shouldEqual (Error[ex])
         
 
 [<Test>]
